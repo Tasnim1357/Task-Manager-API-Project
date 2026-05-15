@@ -5,13 +5,28 @@ from .models import Task
 from .serializers import TaskSerializer
 from rest_framework import status
 from  rest_framework.authentication import TokenAuthentication
-from rest_framework.permissions import IsAuthenticated
+# from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import SAFE_METHODS, BasePermission, DjangoModelPermissions, IsAdminUser,DjangoModelPermissionsOrAnonReadOnly, IsAuthenticatedOrReadOnly
+
 # Create your views here.
 
 # Class based view for handling tasks
+class TaskUserWritePermission(BasePermission):
+    message='Editing tasks is restricted to the author only.'
+    def has_object_permission(self, request, view, obj):
+        if request.method in SAFE_METHODS:
+            return True
+        return obj.user == request.user
+
+
 class Tasklist(APIView):
-    authentication_classes = [TokenAuthentication]
-    permission_classes = [IsAuthenticated]
+    # authentication_classes = [TokenAuthentication]
+    # permission_classes = [IsAdminUser]
+    queryset = Task.objects.all()
+    # permission_classes = [DjangoModelPermissionsOrAnonReadOnly] # Allow read-only access for unauthenticated users, and full access for authenticated users with the appropriate model permissions.mane j j field e permission ase oi user er
+        # permission_classes = [DjangoModelPermissions]
+
+    permission_classes =[IsAuthenticatedOrReadOnly]    
 
     def get(self,request):
         tasks= Task.objects.all()
@@ -30,7 +45,7 @@ class TaskDetail(APIView):
     #         return Task.objects.get(pk=pk)
     #     except Task.DoesNotExist:
     #         return Response(status=status.HTTP_404_NOT_FOUND)
-
+    permission_classes=[TaskUserWritePermission]
     def get_object(self, pk):
         return get_object_or_404(Task, pk=pk)
 
