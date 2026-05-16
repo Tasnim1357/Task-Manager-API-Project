@@ -4,8 +4,8 @@ from rest_framework.response import Response
 from .models import Task
 from .serializers import TaskSerializer
 from rest_framework import status
-from  rest_framework.authentication import TokenAuthentication
-# from rest_framework.permissions import IsAuthenticated
+from  rest_framework.authentication import TokenAuthentication, SessionAuthentication
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.permissions import SAFE_METHODS, BasePermission, DjangoModelPermissions, IsAdminUser,DjangoModelPermissionsOrAnonReadOnly, IsAuthenticatedOrReadOnly
 
 # Create your views here.
@@ -22,11 +22,12 @@ class TaskUserWritePermission(BasePermission):
 class Tasklist(APIView):
     # authentication_classes = [TokenAuthentication]
     # permission_classes = [IsAdminUser]
+    authentication_classes = [SessionAuthentication]
     queryset = Task.objects.all()
     # permission_classes = [DjangoModelPermissionsOrAnonReadOnly] # Allow read-only access for unauthenticated users, and full access for authenticated users with the appropriate model permissions.mane j j field e permission ase oi user er
-        # permission_classes = [DjangoModelPermissions]
-
-    permission_classes =[IsAuthenticatedOrReadOnly]    
+    # permission_classes = [DjangoModelPermissions]
+    permission_classes = [IsAuthenticated] # Allow read-only access for unauthenticated users, and full access for authenticated users.
+    # permission_classes =[IsAuthenticatedOrReadOnly]    
 
     def get(self,request):
         tasks= Task.objects.all()
@@ -45,23 +46,28 @@ class TaskDetail(APIView):
     #         return Task.objects.get(pk=pk)
     #     except Task.DoesNotExist:
     #         return Response(status=status.HTTP_404_NOT_FOUND)
+    authentication_classes = [SessionAuthentication]
     permission_classes=[TaskUserWritePermission]
     def get_object(self, pk):
         return get_object_or_404(Task, pk=pk)
 
     def get(self,request,pk):
         task=self.get_object(pk)
+        self.check_object_permissions(request, task) # Check if the user has custom permission to access this object
         serializer= TaskSerializer(task)
         return Response(serializer.data,status=status.HTTP_200_OK)
     def patch(self,request,pk):
         task=self.get_object(pk)
+        self.check_object_permissions(request, task)
         serializer= TaskSerializer(task, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     def delete(self,request,pk):
+        
         task=self.get_object(pk)
+        self.check_object_permissions(request, task)
         task.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 

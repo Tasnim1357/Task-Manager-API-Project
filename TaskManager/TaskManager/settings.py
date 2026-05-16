@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 from pathlib import Path
+from datetime import timedelta
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -20,6 +21,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
+# eta secret korar upai o jante hobe, karon eta public korle security issue hote pare. eta ke environment variable e store kora uchit.
 SECRET_KEY = 'django-insecure-gvhvy@zumd9x#vjr=#irwkb(h*6x@1lc_92opym1p!71&)t=xe'
 
 # SECURITY WARNING: don't run with debug turned on in production!
@@ -38,7 +40,9 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'tasks',
+    'users',
     'rest_framework',
+    'rest_framework_simplejwt.token_blacklist',
     'rest_framework.authtoken',
 ]
 
@@ -119,11 +123,15 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 # Default PROJECT LEVEL permission
-# REST_FRAMEWORK = {
-#     'DEFAULT_PERMISSION_CLASSES': [
-#         'rest_framework.permissions.AllowAny',
-#     ]
-# }
+REST_FRAMEWORK = {
+    # 'DEFAULT_PERMISSION_CLASSES': [
+    #     'rest_framework.permissions.AllowAny',
+    # ],
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+       
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ]
+}
 
 # PERMISSIONS:
 # AllowAny
@@ -131,6 +139,43 @@ STATIC_URL = 'static/'
 # IsAdminUser
 # IsAuthenticatedOrReadOnly
 
-# CORS_ALLOWED_ORIGINS = [
-#     "http://localhost:8000",
-# ]
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:8000",
+]
+
+# Custom user model
+AUTH_USER_MODEL = 'users.NewUser'
+
+# For JWT Authentication in advanced authentication
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
+
+    "UPDATE_LAST_LOGIN": True,
+
+    "ALGORITHM": "HS256",
+    "SIGNING_KEY": SECRET_KEY,
+
+    "AUTH_HEADER_TYPES": ("Bearer",),
+    "AUTH_HEADER_NAME": "HTTP_AUTHORIZATION",
+
+    "USER_ID_FIELD": "id",
+    "USER_ID_CLAIM": "user_id",
+
+    "CHECK_USER_IS_ACTIVE": True,
+}
+
+# For normal authentication
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=5),
+
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
+
+    "SIGNING_KEY": SECRET_KEY,
+
+    "AUTH_HEADER_TYPES": ("Bearer",),
+
+}
