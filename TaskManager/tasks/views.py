@@ -1,15 +1,22 @@
+
 from django.shortcuts import get_object_or_404, render
+from django.tasks import task
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from rest_framework import status, viewsets
+from users.models import NewUser
 from .models import Task
-from .serializers import TaskSerializer
+from .serializers import MiniTaskSerializer, TaskList2Serializer, TaskSerializer, UserWithTasksSerializer
 from rest_framework import status
 from  rest_framework.authentication import TokenAuthentication, SessionAuthentication
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.permissions import SAFE_METHODS, BasePermission, DjangoModelPermissions, IsAdminUser,DjangoModelPermissionsOrAnonReadOnly, IsAuthenticatedOrReadOnly
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.generics import ListCreateAPIView, RetrieveUpdateDestroyAPIView
-
+from rest_framework.filters import SearchFilter, OrderingFilter
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.decorators import action
+from rest_framework_simplejwt.authentication import JWTAuthentication
 # Create your views here.
 
 # Class based view for handling tasks
@@ -52,7 +59,7 @@ class CustomPaginationTwo(PageNumberPagination):
     page_size_query_param='page_size'
 
 class CustomPaginationThree(PageNumberPagination):
-    page_size=2
+    page_size=5
     page_size_query_param='page_size'           ## Allow clients to set the page size using a query parameter (e.g., ?page_size=5)
     max_page_size=5    
 
@@ -64,7 +71,31 @@ class Tasklist(ListCreateAPIView):
     permission_classes = [IsAuthenticated]
     # pagination_class = PageNumberPagination
     pagination_class = CustomPaginationThree
+    filter_backends = [
+    DjangoFilterBackend,
+    SearchFilter,
+    OrderingFilter,
+] # Enable search, filter, and ordering functionality
+    search_fields =['title','user__user_name'] # Search by title and user name
+    # For filter
+    filterset_fields = ['completed', 'title'] # Filter by completed status and title
+    ordering_fields = ['title', 'completed'] # Allow ordering by title and completed status
+    ordering=['id'] # Default ordering by id
+    def get_queryset(self):
+        user=self.request.user
+        return Task.objects.filter(user=user) # Filter tasks by the authenticated user
+
+class UserWithTasksList(ListCreateAPIView):
+    queryset=NewUser.objects.all()
+    serializer_class= UserWithTasksSerializer
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsAuthenticated]
     
+class TaskList2(ListCreateAPIView):
+    queryset = Task.objects.all()
+    serializer_class = TaskList2Serializer
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsAuthenticated]
 
 
 class TaskDetail(APIView):
@@ -82,7 +113,7 @@ class TaskDetail(APIView):
         task=self.get_object(pk)
         self.check_object_permissions(request, task) # Check if the user has custom permission to access this object
         serializer= TaskSerializer(task)
-        return Response(serializer.data,status=status.HTTP_200_OK)
+        return Response(serializer.data, status=status.HTTP_200_OK)
     def patch(self,request,pk):
         task=self.get_object(pk)
         self.check_object_permissions(request, task)
@@ -99,3 +130,46 @@ class TaskDetail(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
+class TaskViewSet(viewsets.ModelViewSet):
+    queryset = Task.objects.all()
+    serializer_class = TaskSerializer
+    authentication_classes = [SessionAuthentication,JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+    # def get_queryset(self):
+    #     user=self.request.user
+    #     return Task.objects.filter(user=user)
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return MiniTaskSerializer
+        return TaskSerializer
+    # only admin can delete task
+    # def get_permissions(self):
+    #     if self.action == 'destroy':
+    #         return [IsAdminUser()]
+    #     return [IsAuthenticated()]    
+    # public can read but only authenticated user can create
+    # def get_permissions(self):
+    #     if self.action in ['list', 'retrieve']:
+    #         return [IsAuthenticatedOrReadOnly()]
+    #     return [IsAuthenticated()]
+    def get_permissions(self):
+        if self.action =='destroy':
+            return [IsAdminUser()]
+        elif self.action in ['update', 'partial_update']:
+            return [TaskUserWritePermission()]
+        return [IsAuthenticated()]
+    
+    # Custom action added to get completed tasks
+    @action(detail=True, methods=["post"])
+    def complete(self, request, pk=None):
+
+        task = self.get_object()
+
+        task.completed = True
+        task.save()
+
+        return Response({
+            "message": "Task completed"
+        })
